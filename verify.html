@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Divine AI Teams - Setup Verification</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #ffffff;
+        }
+        h1 { color: #fbbf24; }
+        .check-item {
+            padding: 15px;
+            margin: 10px 0;
+            background: #151515;
+            border-radius: 8px;
+            border: 1px solid #262626;
+        }
+        .success { border-left: 4px solid #10b981; }
+        .warning { border-left: 4px solid #fbbf24; }
+        .error { border-left: 4px solid #ef4444; }
+        button {
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+            color: #0a0a0a;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { opacity: 0.9; }
+        code {
+            background: #0a0a0a;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #fbbf24;
+        }
+        #results { margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Divine AI Teams - Setup Verification</h1>
+    <p>This page verifies your landing page setup. Open in browser after deploying.</p>
+    
+    <button onclick="runChecks()">Run Verification</button>
+    <button onclick="testSupabase()">Test Supabase Connection</button>
+    
+    <div id="results"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script>
+        function addResult(title, status, message) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `check-item ${status}`;
+            div.innerHTML = `<strong>${title}</strong><br>${message}`;
+            results.appendChild(div);
+        }
+
+        function runChecks() {
+            document.getElementById('results').innerHTML = '<h2>Running checks...</h2>';
+            
+            // Check 1: Config file loaded
+            if (typeof window.DIVINE_CONFIG !== 'undefined') {
+                addResult('✅ Config Loaded', 'success', 'config.js is properly loaded');
+            } else {
+                addResult('❌ Config Missing', 'error', 'config.js not loaded. Check file path.');
+            }
+            
+            // Check 2: Supabase URL
+            if (window.DIVINE_CONFIG && window.DIVINE_CONFIG.SUPABASE_URL) {
+                addResult('✅ Supabase URL', 'success', `Connected to: ${window.DIVINE_CONFIG.SUPABASE_URL}`);
+            } else {
+                addResult('❌ Supabase URL', 'error', 'Supabase URL not configured');
+            }
+            
+            // Check 3: Supabase client
+            if (typeof window.supabase !== 'undefined') {
+                addResult('✅ Supabase Client', 'success', 'Supabase JS library loaded');
+            } else {
+                addResult('❌ Supabase Client', 'error', 'Supabase JS library not loaded. Check CDN link.');
+            }
+            
+            // Check 4: WhatsApp number
+            if (window.DIVINE_CONFIG && window.DIVINE_CONFIG.WHATSAPP_NUMBER) {
+                addResult('✅ WhatsApp Number', 'success', `Configured: +${window.DIVINE_CONFIG.WHATSAPP_NUMBER}`);
+            } else {
+                addResult('❌ WhatsApp Number', 'error', 'WhatsApp number not configured');
+            }
+            
+            // Check 5: Form exists
+            if (document.getElementById('applicationForm')) {
+                addResult('✅ Form Present', 'success', 'Application form found on index.html');
+            } else {
+                addResult('⚠️ Form Not Found', 'warning', 'This is the verification page. Check index.html for the form.');
+            }
+            
+            // Check 6: Anon key
+            if (window.DIVINE_CONFIG && window.DIVINE_CONFIG.SUPABASE_ANON_KEY) {
+                const key = window.DIVINE_CONFIG.SUPABASE_ANON_KEY;
+                if (key.includes('service_role')) {
+                    addResult('⚠️ Service Role Key Detected', 'warning', 'You should use ANON key for production, not service_role. See README.md');
+                } else {
+                    addResult('✅ API Key', 'success', 'API key configured');
+                }
+            }
+        }
+
+        async function testSupabase() {
+            document.getElementById('results').innerHTML = '<h2>Testing Supabase...</h2>';
+            
+            try {
+                const supabase = window.supabase.createClient(
+                    window.DIVINE_CONFIG.SUPABASE_URL,
+                    window.DIVINE_CONFIG.SUPABASE_ANON_KEY
+                );
+                
+                addResult('📡 Connecting...', 'warning', 'Testing connection to Supabase');
+                
+                // Try to query the table
+                const { data, error } = await supabase
+                    .from('divine_teams_applications')
+                    .select('count')
+                    .limit(1);
+                
+                if (error) {
+                    if (error.message.includes('permission denied') || error.message.includes('row-level security')) {
+                        addResult('✅ Table Exists (RLS Active)', 'success', 'Table is configured with Row Level Security. This is expected! Users can INSERT but not SELECT.');
+                    } else if (error.message.includes('does not exist')) {
+                        addResult('❌ Table Not Found', 'error', 'Run supabase_setup.sql in Supabase SQL Editor');
+                    } else {
+                        addResult('⚠️ Unknown Error', 'warning', error.message);
+                    }
+                } else {
+                    addResult('✅ Connection Success', 'success', `Table exists and accessible. ${data ? data.length : 0} rows found.`);
+                }
+                
+            } catch (err) {
+                addResult('❌ Connection Failed', 'error', err.message);
+            }
+        }
+
+        // Auto-run on load
+        window.addEventListener('load', () => {
+            setTimeout(runChecks, 500);
+        });
+    </script>
+</body>
+</html>
